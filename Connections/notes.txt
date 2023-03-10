@@ -1,0 +1,6 @@
+To view USB devices:
+	lsusb
+To get name of device:
+	dmesg | grep "tty"
+To view output stream:
+	cat < /dev/ttyACM0
