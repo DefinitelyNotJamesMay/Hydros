@@ -1,10 +1,18 @@
 #include <ArduinoJson.h>
+#include "DFRobot_ORP_PRO.h"
 
 // Water Pressure Sensor Wiki
 // https://wiki.dfrobot.com/Gravity__Water_Pressure_Sensor_SKU__SEN0257
 
 // Water Turbidity Sensor Wiki
 // https://wiki.dfrobot.com/Turbidity_sensor_SKU__SEN0189
+
+// Water Flow Rate Sensor Docs
+// https://www.hobbytronics.co.uk/datasheets/sensors/YF-S201.pdf
+
+// ORP Sensor Docs
+// https://wiki.dfrobot.com/Gravity_Analog_ORP_Sensor_PRO_SKU_SEN0464
+
 
 void setup() {
   // put your setup code here, to run once:
@@ -18,13 +26,17 @@ int count = 0;
 int PRES_PIN_1 = 6;
 int PRES_PIN_2 = 7;
 int TURB_PIN = 9;
+int ORP_PIN =  11;
 float PRES_CAL_1 = 5.00;
 float PRES_CAL_2 = 5.00;
 float PRES_1 = 0;
 float PRES_2 = 0;
 float TURB = 0;
+float ORP_VAL = 0;
 
 DynamicJsonDocument JSON_DOC(1024);
+
+DFRobot_ORP_PRO ORP(0);
 
 float getWaterPressure(int port, double offset) {
   float v = analogRead(port) * 5.00 / 1024;     //Sensor output voltage
