@@ -26,19 +26,21 @@ int PRES_PIN_2 = 7;
 int TURB_PIN = 9;
 int ORP_PIN =  11;
 int PH_PIN = 13;
-float PRES_CAL_1 = 5.00;
-float PRES_CAL_2 = 5.00;
+int FLOW_PIN = 18;
+float PRES_CAL_1 = 0.483398;
+float PRES_CAL_2 = 0.478516;
+float TURB_CAL = 0.07;
 float PRES_1 = 0;
 float PRES_2 = 0;
 float TURB = 0;
 float ORP = 0;
 float PH = 0;
 float WATER_TEMP = 25;
-
+float FLOW = 0;
+volatile int FLOW_COUNT = 10;
+int LAST_FLOW_READ = millis();
 DynamicJsonDocument JSON_DOC(1024);
-
 DFRobot_ORP_PRO ORPCalc(0);
-
 DFRobot_PH PhCalc;
 
 
@@ -48,6 +50,11 @@ void setup() {
   PhCalc.begin();
   while(!Serial) continue;
   Serial.println("Initialising");
+  attachInterrupt(digitalPinToInterrupt(FLOW_PIN), countFlow, RISING);
+}
+
+int countFlow() {
+  FLOW_COUNT++;
 }
 
 float getWaterPressure(int port, double offset) {
@@ -57,16 +64,21 @@ float getWaterPressure(int port, double offset) {
 }
 
 float getWaterPressureCal(int port) {
-  float lowest = 10000;
+  float lowest = 10000.00;
   for (int i=0; i<10; i++) {
     lowest = min(analogRead(port), lowest);
-    delay(200);
+    Serial.print("Lowest: ");
+    Serial.println(lowest);
+    delay(500);
   }
   return lowest * 5.00 / 1024;
 }
 
-float getTurbidityVoltage(int port) {
-  return analogRead(port) * (5.0 / 1024.0);
+float getTurbidity(int port) {
+  double voltage = (analogRead(port)* 5.0 / 1024.0) - TURB_CAL;
+  Serial.println(voltage);
+  double turbidity = (-1120.4 * voltage * voltage) + (5742.3 * voltage) - 4352.9;
+  return turbidity;
 }
 
 float getOrp(int port) {
@@ -79,6 +91,14 @@ float getPh(int port) {
   float voltage = analogRead(port)/1024.0*5000;
   float phValue = PhCalc.readPH(voltage, WATER_TEMP);
   return phValue;
+}
+
+float getFlowRate() {
+  float duration = (millis() - LAST_FLOW_READ) / 1000;
+  LAST_FLOW_READ = millis();
+  float flowRate = FLOW_COUNT / 7.5 / duration;
+  FLOW_COUNT = 0;
+  return flowRate;
 }
 
 void calibrateSensors() {
@@ -99,19 +119,19 @@ void updateMetrics() {
   JSON_DOC["TURB"] = TURB;
   JSON_DOC["ORP"] = ORP;
   JSON_DOC["PH"] = PH;
+  JSON_DOC["FLOW"] = FLOW;
 }
 
 void readSensors() {
   PRES_1 = getWaterPressure(PRES_PIN_1, PRES_CAL_1);
   PRES_2 = getWaterPressure(PRES_PIN_2, PRES_CAL_2);
-  TURB = getTurbidityVoltage(TURB_PIN);
+  TURB = getTurbidity(TURB_PIN);
   ORP = getOrp(ORP_PIN);
   PH = getPh(PH_PIN);
+  FLOW = getFlowRate();
 }
 
 void loop() {
-
-  calibrateSensors();
 
   while (true) {
     readSensors();
