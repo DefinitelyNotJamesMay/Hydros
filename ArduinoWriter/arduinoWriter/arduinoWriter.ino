@@ -41,8 +41,10 @@ float FLOW = 0;
 volatile int FLOW_COUNT = 10;
 int LAST_FLOW_READ = millis();
 DynamicJsonDocument JSON_DOC(1024);
+DynamicJsonDocument INPUT_JSON(1024);
 DFRobot_ORP_PRO ORPCalc(-14);
 DFRobot_PH PhCalc;
+bool TRANSMIT_STATISTICS = false;
 
 
 void setup() {
@@ -75,26 +77,19 @@ float getWaterPressureCal(int port) {
 
 float getTurbidity(int port) {
   double voltage = (analogRead(port)* 5.0 / 1024.0);
-  Serial.print("Turbidity Voltage: ");
-  Serial.println(voltage);
   double turbidity = (-1120.4 * voltage * voltage) + (5742.3 * voltage) - 4352.9;
   return turbidity;
 }
 
 float getOrp(int port) {
   float voltage = ((unsigned long)analogRead(ORP_PIN) * 5000 + 1024 / 2) / 1024;
-  Serial.print("Voltage: ");
-  Serial.println(voltage);
   float orp = ORPCalc.getORP(voltage);
   return orp;
 }
 
 float getPh(int port) {
   float voltage = analogRead(port)/1024.0*5000;
-  Serial.print("pH Voltage ");
-  Serial.println(voltage);
   float phValue = PhCalc.readPH(voltage, WATER_TEMP);
-  Serial.println(phValue);
   return phValue;
 }
 
@@ -112,6 +107,7 @@ void calibrateSensors() {
 }
 
 void transmitMetrics() {
+  if (!TRANSMIT_STATISTICS) return;
     serializeJson(JSON_DOC, Serial);
 }
 
@@ -136,11 +132,23 @@ void readSensors() {
   FLOW = getFlowRate();
 }
 
+void getInput() {
+  static StaticJsonDocument<256> json_doc;
+
+
+    const auto deser_err = deserializeJson(INPUT_JSON, Serial);
+    if (!deser_err) {
+      TRANSMIT_STATISTICS = INPUT_JSON["STATS"];
+      Serial.println(TRANSMIT_STATISTICS);
+    }
+}
+
 void loop() {
 
   calibrateSensors();
 
   while (true) {
+    getInput();
     readSensors();
     updateMetrics();
     transmitMetrics();
