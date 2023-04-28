@@ -28,6 +28,10 @@ int TURB_PIN = A9;
 int ORP_PIN =  A12;
 int PH_PIN = A15;
 int FLOW_PIN = 2;
+int VALVE_BUTTON_PIN_1 = 14;
+int VALVE_BUTTON_PIN_2 = 15;
+int VALVE_RELAY_PIN_1 = 16;
+int VALVE_RELAY_PIN_2 = 17;
 float PRES_CAL_1 = 0.483398;
 float PRES_CAL_2 = 0.478516;
 float TURB_CAL = 0.07;
@@ -45,11 +49,22 @@ DynamicJsonDocument INPUT_JSON(1024);
 DFRobot_ORP_PRO ORPCalc(-14);
 DFRobot_PH PhCalc;
 bool TRANSMIT_STATISTICS = false;
+bool FILTER = false;
+bool FILTER_BUTTON = false;
+bool DISPENSE = false;
+bool DISPENSE_BUTTON = false;
 
 
 void setup() {
   // put your setup code here, to run once:
+  pinMode(VALVE_BUTTON_PIN_1, INPUT);
+  pinMode(VALVE_BUTTON_PIN_2, INPUT);
+  pinMode(VALVE_RELAY_PIN_1, OUTPUT);
+  pinMode(VALVE_RELAY_PIN_2, OUTPUT);
+  digitalWrite(VALVE_RELAY_PIN_1, HIGH);
+  digitalWrite(VALVE_RELAY_PIN_2, HIGH);
   Serial.begin(9600);
+  Serial.setTimeout(100);
   PhCalc.begin();
   while(!Serial) continue;
   Serial.println("Initialising");
@@ -133,14 +148,40 @@ void readSensors() {
 }
 
 void getInput() {
-  static StaticJsonDocument<256> json_doc;
+
+  FILTER_BUTTON = digitalRead(VALVE_BUTTON_PIN_1) == HIGH;
+  DISPENSE_BUTTON = digitalRead(VALVE_BUTTON_PIN_2) == HIGH;
 
 
-    const auto deser_err = deserializeJson(INPUT_JSON, Serial);
-    if (!deser_err) {
-      TRANSMIT_STATISTICS = INPUT_JSON["STATS"];
-      Serial.println(TRANSMIT_STATISTICS);
-    }
+  const auto deser_err = deserializeJson(INPUT_JSON, Serial);
+  if (!deser_err) {
+    TRANSMIT_STATISTICS = INPUT_JSON["STATS"];
+    FILTER = INPUT_JSON["FILTER"];
+    DISPENSE = INPUT_JSON["DISPENSE"];
+  }
+}
+
+void filter() {
+  if (FILTER || FILTER_BUTTON) {
+    digitalWrite(VALVE_RELAY_PIN_1, LOW);
+  } else {
+    digitalWrite(VALVE_RELAY_PIN_1, HIGH);
+  }
+}
+
+void dispense() {
+  if (DISPENSE || DISPENSE_BUTTON) {
+    digitalWrite(VALVE_RELAY_PIN_2, LOW);
+  } else {
+    digitalWrite(VALVE_RELAY_PIN_2, HIGH);
+  }
+}
+
+void printDebug() {
+  Serial.println("Dispense: " + DISPENSE);
+  Serial.println("Dispense Button: " + DISPENSE_BUTTON);
+  Serial.println("Filter: " + FILTER);
+  Serial.println("Filter Button: " + FILTER_BUTTON);
 }
 
 void loop() {
@@ -153,6 +194,8 @@ void loop() {
     updateMetrics();
     transmitMetrics();
     Serial.println();
-    delay(1000);
+    filter();
+    dispense();
+    delay(100);
   }
 }
