@@ -1,7 +1,7 @@
-const int button1 = 11; // declare pin 11 as a constant variable
-const int relay1 = 2;   // declare pin 2 as a constant variable
-const int button2 = 12;
-const int relay2 = 3;
+const int button1 = 14; // declare pin 11 as a constant variable
+const int relay1 = 16;   // declare pin 2 as a constant variable
+const int button2 = 15;
+const int relay2 = 17;
 
 void setup() {
   pinMode(button1, INPUT);  // set pin 11 as input
@@ -12,17 +12,19 @@ void setup() {
 }
 
 void loop() {
-  if (digitalRead(button1) == HIGH) {  // check if pin 11 is high (inverted due to pull-up)
-    digitalWrite(relay1, LOW);         // set pin 2 to low
-  } else {
-    digitalWrite(relay1, HIGH);        // set pin 2 to high
-  }
+  digitalWrite(relay1, HIGH);
+  digitalWrite(relay2, HIGH);
+  // if (digitalRead(button1) == HIGH) {  // check if pin 11 is high (inverted due to pull-up)
+  //   digitalWrite(relay1, LOW);         // set pin 2 to low
+  // } else {
+  //   digitalWrite(relay1, HIGH);        // set pin 2 to high
+  // }
 
-  if (digitalRead(button2) == HIGH) {  // check if pin 11 is high (inverted due to pull-up)
-    digitalWrite(relay2, LOW);         // set pin 2 to low
-  } else {
-    digitalWrite(relay2, HIGH);        // set pin 2 to high
-  }
+  // if (digitalRead(button2) == HIGH) {  // check if pin 11 is high (inverted due to pull-up)
+  //   digitalWrite(relay2, LOW);         // set pin 2 to low
+  // } else {
+  //   digitalWrite(relay2, HIGH);        // set pin 2 to high
+  // }
 
   int button1Status = digitalRead(button1);  // read the status of button1
   int relay1Status = digitalRead(relay1);    // read the status of pin2

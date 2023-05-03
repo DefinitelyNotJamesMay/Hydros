@@ -27,11 +27,12 @@ int PRES_PIN_2 = A7;
 int TURB_PIN = A9;
 int ORP_PIN =  A12;
 int PH_PIN = A15;
-int FLOW_PIN = 2;
-int VALVE_BUTTON_PIN_1 = 14;
-int VALVE_BUTTON_PIN_2 = 15;
-int VALVE_RELAY_PIN_1 = 16;
-int VALVE_RELAY_PIN_2 = 17;
+int FLOW_PIN_1 = 9;
+int FLOW_PIN_2 = 3;
+int VALVE_BUTTON_PIN_1 = 2;
+int VALVE_BUTTON_PIN_2 = 3;
+int VALVE_RELAY_PIN_1 = 4;
+int VALVE_RELAY_PIN_2 = 5;
 float PRES_CAL_1 = 0.483398;
 float PRES_CAL_2 = 0.478516;
 float TURB_CAL = 0.07;
@@ -41,14 +42,15 @@ float TURB = 0;
 float ORP = 0;
 float PH = 0;
 float WATER_TEMP = 25;
-float FLOW = 0;
+float FLOW_1 = 0;
+float FLOW_2 = 0;
 volatile int FLOW_COUNT = 10;
 int LAST_FLOW_READ = millis();
 DynamicJsonDocument JSON_DOC(1024);
 DynamicJsonDocument INPUT_JSON(1024);
 DFRobot_ORP_PRO ORPCalc(-14);
 DFRobot_PH PhCalc;
-bool TRANSMIT_STATISTICS = false;
+bool TRANSMIT_STATISTICS = true;
 bool FILTER = false;
 bool FILTER_BUTTON = false;
 bool DISPENSE = false;
@@ -61,6 +63,7 @@ void setup() {
   pinMode(VALVE_BUTTON_PIN_2, INPUT);
   pinMode(VALVE_RELAY_PIN_1, OUTPUT);
   pinMode(VALVE_RELAY_PIN_2, OUTPUT);
+  pinMode(FLOW_PIN_1, INPUT);
   digitalWrite(VALVE_RELAY_PIN_1, HIGH);
   digitalWrite(VALVE_RELAY_PIN_2, HIGH);
   Serial.begin(9600);
@@ -68,7 +71,7 @@ void setup() {
   PhCalc.begin();
   while(!Serial) continue;
   Serial.println("Initialising");
-  attachInterrupt(digitalPinToInterrupt(FLOW_PIN), countFlow, RISING);
+  attachInterrupt(digitalPinToInterrupt(FLOW_PIN_1), countFlow, RISING);
 }
 
 int countFlow() {
@@ -77,7 +80,7 @@ int countFlow() {
 
 float getWaterPressure(int port, double offset) {
   float v = analogRead(port) * 5.00 / 1024;     //Sensor output voltage
-  float p = (v - offset) * 250;             //Calculate water pressure
+  float p = (v - offset) * 250 / 100;             //Calculate water pressure
   return p;
 }
 
@@ -117,8 +120,10 @@ float getFlowRate() {
 }
 
 void calibrateSensors() {
-  PRES_CAL_1 = getWaterPressureCal(PRES_PIN_1);
-  PRES_CAL_2 = getWaterPressureCal(PRES_PIN_2);
+  // PRES_CAL_1 = getWaterPressureCal(PRES_PIN_1);
+  // PRES_CAL_2 = getWaterPressureCal(PRES_PIN_2);
+  PRES_CAL_1 = 0.48;
+  PRES_CAL_2 = 0.48;
 }
 
 void transmitMetrics() {
@@ -135,7 +140,7 @@ void updateMetrics() {
   JSON_DOC["TURB"] = TURB;
   JSON_DOC["ORP"] = ORP;
   JSON_DOC["PH"] = PH;
-  JSON_DOC["FLOW"] = FLOW;
+  JSON_DOC["FLOW_1"] = FLOW_1;
 }
 
 void readSensors() {
@@ -144,7 +149,7 @@ void readSensors() {
   TURB = getTurbidity(TURB_PIN);
   ORP = getOrp(ORP_PIN);
   PH = getPh(PH_PIN);
-  FLOW = getFlowRate();
+  FLOW_1 = getFlowRate();
 }
 
 void getInput() {
@@ -184,6 +189,15 @@ void printDebug() {
   Serial.println("Filter Button: " + FILTER_BUTTON);
 }
 
+void printWaterPressure(float press) {
+  int stars = press;
+  Serial.print(stars);
+  for (int i=0; i<stars; i++) {
+    Serial.print("*");
+
+  }
+}
+
 void loop() {
 
   calibrateSensors();
@@ -192,10 +206,11 @@ void loop() {
     getInput();
     readSensors();
     updateMetrics();
+    // printWaterPressure(PRES_1);
     transmitMetrics();
-    Serial.println();
     filter();
     dispense();
-    delay(100);
+    delay(500);
+    Serial.println();
   }
 }
