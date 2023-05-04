@@ -22,11 +22,11 @@
 
 int count = 0;
 
-int PRES_PIN_1 = A6;
-int PRES_PIN_2 = A7;
-int TURB_PIN = A9;
-int ORP_PIN =  A12;
-int PH_PIN = A15;
+int PRES_PIN_1 = A1;
+int PRES_PIN_2 = A2;
+int TURB_PIN = A3;
+int ORP_PIN =  A4;
+int PH_PIN = A4;
 int FLOW_PIN_1 = 2;
 int FLOW_PIN_2 = 3;
 int VALVE_BUTTON_PIN_1 = 6;
@@ -37,6 +37,9 @@ float PRES_CAL_1 = 0.483398;
 float PRES_CAL_2 = 0.478516;
 float TURB_CAL = 0.07;
 float PRES_1 = 0;
+double PRES_1_SUM = 0;
+double PRES_2_SUM = 0;
+int PRES_SAMPLES;
 float PRES_2 = 0;
 float TURB = 0;
 float ORP = 0;
@@ -44,8 +47,8 @@ float PH = 0;
 float WATER_TEMP = 25;
 float FLOW_1 = 0;
 float FLOW_2 = 0;
-volatile int FLOW_COUNT = 0;
-int LAST_FLOW_READ = millis();
+volatile int FLOW_COUNT_1 = 0;
+volatile int FLOW_COUNT_2 = 0;
 DynamicJsonDocument JSON_DOC(1024);
 DynamicJsonDocument INPUT_JSON(1024);
 DFRobot_ORP_PRO ORPCalc(-14);
@@ -57,6 +60,7 @@ bool DISPENSE = false;
 bool DISPENSE_BUTTON = false;
 unsigned long LAST_FLOW_READ_1 = millis();
 int LOOP_DURATION = 500;
+int LOOPS = 50;
 
 
 void setup() {
@@ -78,7 +82,7 @@ void setup() {
 }
 
 int countFlow() {
-  FLOW_COUNT++;
+  FLOW_COUNT_1++;
 }
 
 float getWaterPressure(int port, double offset) {
@@ -114,12 +118,20 @@ float getPh(int port) {
   return phValue;
 }
 
+// float getFlowRate(volatile int * countPtr, unsigned long duration) {
+//   LAST_FLOW_READ_1 = cur;
+//   int count = &countPtr;
+//   float rate = (count / 7.5  * 1000 / duration);
+//   count = 0;
+//   return rate;
+// }
+
 float getFlowRate() {
   unsigned long cur = millis();
   int duration = cur - LAST_FLOW_READ_1;
   LAST_FLOW_READ_1 = cur;
-  float rate = (FLOW_COUNT / 7.5  * 1000 / duration);
-  FLOW_COUNT = 0;
+  float rate = (FLOW_COUNT_1 / 7.5  * 1000 / duration);
+  FLOW_COUNT_1 = 0;
   return rate;
 }
 
@@ -136,18 +148,22 @@ void transmitMetrics() {
 }
 
 void updateMetrics() {
+  double pres_1_avg = PRES_1_SUM / LOOPS;
+  double pres_2_avg = PRES_2_SUM / LOOPS;
+  PRES_1_SUM = 0;
+  PRES_2_SUM = 0;
   JSON_DOC["Count"] = ++count;
-  JSON_DOC["PRES_CAL_1"] = PRES_CAL_1;
-  JSON_DOC["PRES_1"] = PRES_1;
-  JSON_DOC["PRES_CAL_2"] = PRES_CAL_2;
-  JSON_DOC["PRES_2"] = PRES_2;
-  JSON_DOC["TURB"] = TURB;
-  JSON_DOC["ORP"] = ORP;
-  JSON_DOC["PH"] = PH;
+  JSON_DOC["PRES_1"] = pres_1_avg;
+  JSON_DOC["PRES_2"] = pres_2_avg;
+  // JSON_DOC["TURB"] = TURB;
+  // JSON_DOC["ORP"] = ORP;
+  // JSON_DOC["PH"] = PH;
   JSON_DOC["FLOW_1"] = FLOW_1;
 }
 
 void readSensors() {
+  PRES_1_SUM += getWaterPressure(PRES_PIN_1, PRES_CAL_1);
+  PRES_2_SUM += getWaterPressure(PRES_PIN_2, PRES_CAL_2);
   PRES_1 = getWaterPressure(PRES_PIN_1, PRES_CAL_1);
   PRES_2 = getWaterPressure(PRES_PIN_2, PRES_CAL_2);
   TURB = getTurbidity(TURB_PIN);
@@ -206,7 +222,13 @@ void loop() {
 
   calibrateSensors();
 
+
   while (true) {
+    
+    for (int i=0; i<LOOPS; i++) {
+      readSensors();
+      delay(10);
+    }
     getInput();
     readSensors();
     updateMetrics();
