@@ -27,9 +27,9 @@ int PRES_PIN_2 = A7;
 int TURB_PIN = A9;
 int ORP_PIN =  A12;
 int PH_PIN = A15;
-int FLOW_PIN_1 = 9;
+int FLOW_PIN_1 = 2;
 int FLOW_PIN_2 = 3;
-int VALVE_BUTTON_PIN_1 = 2;
+int VALVE_BUTTON_PIN_1 = 6;
 int VALVE_BUTTON_PIN_2 = 3;
 int VALVE_RELAY_PIN_1 = 4;
 int VALVE_RELAY_PIN_2 = 5;
@@ -44,7 +44,7 @@ float PH = 0;
 float WATER_TEMP = 25;
 float FLOW_1 = 0;
 float FLOW_2 = 0;
-volatile int FLOW_COUNT = 10;
+volatile int FLOW_COUNT = 0;
 int LAST_FLOW_READ = millis();
 DynamicJsonDocument JSON_DOC(1024);
 DynamicJsonDocument INPUT_JSON(1024);
@@ -55,6 +55,8 @@ bool FILTER = false;
 bool FILTER_BUTTON = false;
 bool DISPENSE = false;
 bool DISPENSE_BUTTON = false;
+unsigned long LAST_FLOW_READ_1 = millis();
+int LOOP_DURATION = 500;
 
 
 void setup() {
@@ -63,7 +65,7 @@ void setup() {
   pinMode(VALVE_BUTTON_PIN_2, INPUT);
   pinMode(VALVE_RELAY_PIN_1, OUTPUT);
   pinMode(VALVE_RELAY_PIN_2, OUTPUT);
-  pinMode(FLOW_PIN_1, INPUT);
+  pinMode(FLOW_PIN_1, INPUT_PULLUP);
   digitalWrite(VALVE_RELAY_PIN_1, HIGH);
   digitalWrite(VALVE_RELAY_PIN_2, HIGH);
   Serial.begin(9600);
@@ -72,6 +74,7 @@ void setup() {
   while(!Serial) continue;
   Serial.println("Initialising");
   attachInterrupt(digitalPinToInterrupt(FLOW_PIN_1), countFlow, RISING);
+  sei();
 }
 
 int countFlow() {
@@ -112,11 +115,12 @@ float getPh(int port) {
 }
 
 float getFlowRate() {
-  float duration = (millis() - LAST_FLOW_READ) / 1000;
-  LAST_FLOW_READ = millis();
-  float flowRate = FLOW_COUNT / 7.5 / duration;
+  unsigned long cur = millis();
+  int duration = cur - LAST_FLOW_READ_1;
+  LAST_FLOW_READ_1 = cur;
+  float rate = (FLOW_COUNT / 7.5  * 1000 / duration);
   FLOW_COUNT = 0;
-  return flowRate;
+  return rate;
 }
 
 void calibrateSensors() {
@@ -210,7 +214,7 @@ void loop() {
     transmitMetrics();
     filter();
     dispense();
-    delay(500);
+    delay(LOOP_DURATION);
     Serial.println();
   }
 }
