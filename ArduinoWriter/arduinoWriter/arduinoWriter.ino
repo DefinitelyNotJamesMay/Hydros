@@ -33,6 +33,8 @@ int VALVE_BUTTON_PIN_1 = 6;
 int VALVE_BUTTON_PIN_2 = 3;
 int VALVE_RELAY_PIN_1 = 4;
 int VALVE_RELAY_PIN_2 = 5;
+int PUMP_RELAY_PIN_1 = 7; // Controls Pump 1
+int PUMP_RELAY_PIN_2 = 8; // Controls Pump 2
 float PRES_CAL_1 = 0.483398;
 float PRES_CAL_2 = 0.478516;
 float TURB_CAL = 0.07;
@@ -59,8 +61,13 @@ bool FILTER_BUTTON = false;
 bool DISPENSE = false;
 bool DISPENSE_BUTTON = false;
 unsigned long LAST_FLOW_READ_1 = millis();
+unsigned long LAST_FLOW_READ_2 = millis();
 int LOOP_DURATION = 500;
 int LOOPS = 50;
+String PUMP_1 = String("NORMAL");
+String PUMP_2 = "NORMAL";
+String VALVE_1 = "NORMAL";
+String VALVE_2 = "NORMAL";
 
 
 void setup() {
@@ -69,20 +76,29 @@ void setup() {
   pinMode(VALVE_BUTTON_PIN_2, INPUT);
   pinMode(VALVE_RELAY_PIN_1, OUTPUT);
   pinMode(VALVE_RELAY_PIN_2, OUTPUT);
+  pinMode(PUMP_RELAY_PIN_1, OUTPUT);
+  pinMode(PUMP_RELAY_PIN_2, OUTPUT);
   pinMode(FLOW_PIN_1, INPUT_PULLUP);
   digitalWrite(VALVE_RELAY_PIN_1, HIGH);
   digitalWrite(VALVE_RELAY_PIN_2, HIGH);
+  digitalWrite(PUMP_RELAY_PIN_1, HIGH);
+  digitalWrite(PUMP_RELAY_PIN_2, HIGH);
   Serial.begin(9600);
   Serial.setTimeout(100);
   PhCalc.begin();
   while(!Serial) continue;
   Serial.println("Initialising");
-  attachInterrupt(digitalPinToInterrupt(FLOW_PIN_1), countFlow, RISING);
+  attachInterrupt(digitalPinToInterrupt(FLOW_PIN_1), countFlow1, RISING);
+  attachInterrupt(digitalPinToInterrupt(FLOW_PIN_2), countFlow2, RISING);
   sei();
 }
 
-int countFlow() {
+int countFlow1() {
   FLOW_COUNT_1++;
+}
+
+int countFlow2() {
+  FLOW_COUNT_2++;
 }
 
 float getWaterPressure(int port, double offset) {
@@ -126,12 +142,21 @@ float getPh(int port) {
 //   return rate;
 // }
 
-float getFlowRate() {
+float getFlowRate1() {
   unsigned long cur = millis();
   int duration = cur - LAST_FLOW_READ_1;
   LAST_FLOW_READ_1 = cur;
   float rate = (FLOW_COUNT_1 / 7.5  * 1000 / duration);
   FLOW_COUNT_1 = 0;
+  return rate;
+}
+
+float getFlowRate2() {
+  unsigned long cur = millis();
+  int duration = cur - LAST_FLOW_READ_2;
+  LAST_FLOW_READ_2 = cur;
+  float rate = (FLOW_COUNT_2 / 7.5  * 1000 / duration);
+  FLOW_COUNT_2 = 0;
   return rate;
 }
 
@@ -169,7 +194,7 @@ void readSensors() {
   TURB = getTurbidity(TURB_PIN);
   ORP = getOrp(ORP_PIN);
   PH = getPh(PH_PIN);
-  FLOW_1 = getFlowRate();
+  FLOW_1 = getFlowRate1();
 }
 
 void getInput() {
@@ -180,9 +205,19 @@ void getInput() {
 
   const auto deser_err = deserializeJson(INPUT_JSON, Serial);
   if (!deser_err) {
-    TRANSMIT_STATISTICS = INPUT_JSON["STATS"];
-    FILTER = INPUT_JSON["FILTER"];
-    DISPENSE = INPUT_JSON["DISPENSE"];
+    if (INPUT_JSON.containsKey("STATS")) TRANSMIT_STATISTICS = INPUT_JSON["STATS"];
+    
+    if (INPUT_JSON.containsKey("FILTER")) FILTER = INPUT_JSON["FILTER"];
+
+    if (INPUT_JSON.containsKey("DISPENSE")) DISPENSE = INPUT_JSON["DISPENSE"];
+
+    if (INPUT_JSON.containsKey("PUMP_1")) PUMP_1 = INPUT_JSON["PUMP_1"].as<String>();
+
+    if (INPUT_JSON.containsKey("PUMP_2")) PUMP_2 = INPUT_JSON["PUMP_2"].as<String>();
+
+    if (INPUT_JSON.containsKey("VALVE_1")) VALVE_1 = INPUT_JSON["VALVE_1"].as<String>();
+
+    if (INPUT_JSON.containsKey("VALVE_2")) VALVE_2 = INPUT_JSON["VALVE_2"].as<String>();
   }
 }
 
@@ -200,6 +235,29 @@ void dispense() {
   } else {
     digitalWrite(VALVE_RELAY_PIN_2, HIGH);
   }
+}
+
+void overrideProgram() {
+  if (PUMP_1 == "OVERRIDE_ON") {
+    digitalWrite(PUMP_RELAY_PIN_1, LOW);
+  } else if (PUMP_1 == "OVERRIDE_OFF") {
+    digitalWrite(PUMP_RELAY_PIN_1, HIGH);
+  }
+  if (PUMP_2 == "OVERRIDE_ON") {
+    digitalWrite(PUMP_RELAY_PIN_2, LOW);
+  } else if (PUMP_2 == "OVERRIDE_OFF") {
+    digitalWrite(PUMP_RELAY_PIN_2, HIGH);
+  }
+  if (VALVE_1 == "OVERRIDE_OPEN") {
+    digitalWrite(VALVE_RELAY_PIN_1, LOW);
+  } else if (VALVE_1 == "OVERRIDE_CLOSED") {
+    digitalWrite(VALVE_RELAY_PIN_1, HIGH);
+  }
+  if (VALVE_2 == "OVERRIDE_OPEN") {
+    digitalWrite(VALVE_RELAY_PIN_2, LOW);
+  } else if (VALVE_2 == "OVERRIDE_CLOSED") {
+    digitalWrite(VALVE_RELAY_PIN_2, HIGH);
+  }  
 }
 
 void printDebug() {
@@ -222,7 +280,8 @@ void loop() {
 
   calibrateSensors();
 
-
+  // Look into serial plotter! https://docs.arduino.cc/software/ide-v2/tutorials/ide-v2-serial-plotter
+  
   while (true) {
     
     for (int i=0; i<LOOPS; i++) {
@@ -236,6 +295,7 @@ void loop() {
     transmitMetrics();
     filter();
     dispense();
+    overrideProgram();
     delay(LOOP_DURATION);
     Serial.println();
   }
